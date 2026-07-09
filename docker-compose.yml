@@ -22,7 +22,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 60s
 
   fastapi_app:
     build: 
@@ -36,9 +36,18 @@ services:
       - "${PORT_API}:8000"
     volumes:
       - ./src/api:/app
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
     depends_on:
       oracle:
         condition: service_healthy
+      
     networks:
       - computer_vision_network
 
