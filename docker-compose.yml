@@ -27,7 +27,7 @@ services:
   fastapi_app:
     build: 
       context: ./src/api
-      dockerfile: ./src/api/Dockerfile
+      dockerfile: Dockerfile
     container_name: ${CONTAINER_API}
     restart: unless-stopped
     env_file:
@@ -42,21 +42,24 @@ services:
     networks:
       - computer_vision_network
 
-    streamlit:
-      build:
-        context: ./src/dashboard
-        dockerfile: ./src/dashboard/Dockerfile
-      container_name: ${CONTAINER_STREAMLIT}
-      restart: unless-stopped
-      env_file:
-        - .env
-      ports: "${PORT_STREAMLIT}:8501"
-      volumes: ./src/dashboard:/app
-      depends_on:
-        fastapi_app:
+  streamlit:
+    build:
+      context: ./src/dashboard
+      dockerfile: Dockerfile
+    container_name: ${CONTAINER_STREAMLIT}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports: 
+      - "${PORT_STREAMLIT}:8501"
+    volumes: 
+      - ./src/dashboard:/app
+    depends_on:
+      fastapi_app:
+        condition: service_healthy
 
-      networks:
-        - computer_vision_network
+    networks:
+      - computer_vision_network
 
 networks:
   computer_vision_network:
