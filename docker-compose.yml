@@ -10,7 +10,7 @@ services:
       - "${PORT_DB}:1521"
 
     volumes:
-      - oracle_dados_wsl:/opt/oracle/oradata
+      - oracle_dados_face_detection:/opt/oracle/oradata
 
     shm_size: "1g" 
     
@@ -22,7 +22,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 600s
 
   fastapi_app:
     build: 
@@ -42,7 +42,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 150s
 
     depends_on:
       oracle:
@@ -75,4 +75,4 @@ networks:
     driver: bridge
 
 volumes:
-  oracle_dados_wsl:
+  oracle_dados_face_detection:
