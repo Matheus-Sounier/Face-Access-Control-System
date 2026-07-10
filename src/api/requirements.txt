@@ -1,0 +1,10 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+oracledb==2.5.1
+numpy==1.26.4
+opencv-python-contrib==4.10.0.84
+httpx==0.28.1
+pydantic==2.10.4
+onnxruntime==1.20.1
+insightface==0.7.3
+mediapipe==0.10.35
