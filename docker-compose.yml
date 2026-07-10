@@ -1,78 +1,83 @@
-services:
-  oracle:
-    image: container-registry.oracle.com/database/free:23.26.1.0
-    container_name: ${CONTAINER_DB_NAME}
-    restart: unless-stopped
-    env_file: 
-      - .env
+  services:
+    oracle:
+      image: container-registry.oracle.com/database/free:23.26.1.0
+      container_name: ${CONTAINER_DB_NAME}
+      restart: unless-stopped
+      env_file: 
+        - .env
 
-    ports:
-      - "${PORT_DB}:1521"
+      ports:
+        - "${PORT_DB}:1521"
 
-    volumes:
-      - oracle_dados_face_detection:/opt/oracle/oradata
+      volumes:
+        - oracle_dados_face_detection:/opt/oracle/oradata
 
-    shm_size: "1g" 
-    
-    networks:
-      - computer_vision_network
-
-    healthcheck:
-      test: ["CMD", "healthcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 600s
-
-  fastapi_app:
-    build: 
-      context: ./src/api
-      dockerfile: Dockerfile
-    container_name: ${CONTAINER_API}
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "${PORT_API}:8000"
-    volumes:
-      - ./src/api:/app
-    
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 150s
-
-    depends_on:
-      oracle:
-        condition: service_healthy
+      shm_size: "1g" 
       
-    networks:
-      - computer_vision_network
+      networks:
+        - computer_vision_network
 
-  streamlit:
-    build:
-      context: ./src/dashboard
-      dockerfile: Dockerfile
-    container_name: ${CONTAINER_STREAMLIT}
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports: 
-      - "${PORT_STREAMLIT}:8501"
-    volumes: 
-      - ./src/dashboard:/app
-    depends_on:
-      fastapi_app:
-        condition: service_healthy
+      healthcheck:
+        test:
+          - CMD-SHELL
+          - >-
+            printf 'SET HEADING OFF\nSET FEEDBACK OFF\nSELECT 1 FROM DUAL;\nEXIT;\n' |
+            sqlplus -s sys/${ORACLE_PWD}@//localhost:1521/${SERVICE_NAME} as sysdba |
+            grep -qE '^[[:space:]]*1[[:space:]]*$'
+        timeout: 10s
+        interval: 30s
+        retries: 5
+        start_period: 5m0s
 
-    networks:
-      - computer_vision_network
+    fastapi_app:
+      build: 
+        context: ./src/api
+        dockerfile: Dockerfile
+      container_name: ${CONTAINER_API}
+      restart: unless-stopped
+      env_file:
+        - .env
+      ports:
+        - "${PORT_API}:8000"
+      volumes:
+        - ./src/api:/app
+      
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+        start_period: 150s
 
-networks:
-  computer_vision_network:
-    driver: bridge
+      depends_on:
+        oracle:
+          condition: service_healthy
+        
+      networks:
+        - computer_vision_network
 
-volumes:
-  oracle_dados_face_detection:
+    streamlit:
+      build:
+        context: ./src/dashboard
+        dockerfile: Dockerfile
+      container_name: ${CONTAINER_STREAMLIT}
+      restart: unless-stopped
+      env_file:
+        - .env
+      ports: 
+        - "${PORT_STREAMLIT}:8501"
+      volumes: 
+        - ./src/dashboard:/app
+      depends_on:
+        fastapi_app:
+          condition: service_healthy
+
+      networks:
+        - computer_vision_network
+
+  networks:
+    computer_vision_network:
+      driver: bridge
+
+  volumes:
+    oracle_dados_face_detection:
