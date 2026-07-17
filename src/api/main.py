@@ -19,3 +19,40 @@ detector = vision.FaceDetector.create_from_options(detector_options)
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.post("/enroll")
+async def enroll_person(
+    name: str = Form(...),
+    employee_id: str = Form(...),
+    access_level: str = Form(...),
+    photo: UploadFile = File(...),
+):
+    image_bytes = await photo.read()
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+
+    mp_image = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=cv2.cvtColor(image, cv2.COLOR_BGR2RGB),
+    )
+    result = detector.detect(mp_image)
+
+    if not result.detections:
+        raise HTTPException(status_code=422, detail="No face detected in the uploaded image.")
+
+    if len(result.detections) > 1:
+        raise HTTPException(
+            status_code=422,
+            detail="Multiple faces detected. Upload an image with a single face.",
+        )
+
+    return {
+        "name": name,
+        "employee_id": employee_id,
+        "access_level": access_level,
+        "status": "face_detected_pending_embedding",
+    }
