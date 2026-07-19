@@ -1,13 +1,16 @@
-from fastapi import FastAPI, Form, UploadFile, File, HTTPException
-from db.database import init_db
-from contextlib import asynccontextmanager
+from db.database import init_db, insert_person
+from recognition.embedding import extract_embedding
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
+
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 import numpy as np
 import mediapipe as mp
 
+import oracledb
 import cv2
 import os
 
@@ -57,9 +60,23 @@ async def enroll_person(
             detail="Multiple faces detected. Upload an image with a single face.",
         )
 
+    try:
+        embedding = extract_embedding(image)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    try:
+        person_id = insert_person(name, employee_id, access_level, embedding)
+    except oracledb.IntegrityError:
+        raise HTTPException(
+            status_code=409,
+            detail=f"employee_id '{employee_id}' is already registered.",
+        )
+
     return {
+        "id": person_id,
         "name": name,
         "employee_id": employee_id,
         "access_level": access_level,
-        "status": "face_detected_pending_embedding",
+        "status": "enrolled",
     }

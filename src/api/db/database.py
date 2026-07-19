@@ -1,5 +1,6 @@
 import os
 import oracledb
+import array
 from dotenv import load_dotenv
 
 load_dotenv()
