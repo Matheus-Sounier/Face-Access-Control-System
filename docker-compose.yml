@@ -41,13 +41,14 @@ services:
       - "${PORT_API}:8000"
     volumes:
       - ./src/api:/app
+      - insightface_models:/root/.insightface
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 150s
+      start_period: 100s
 
     depends_on:
       oracle:
@@ -81,3 +82,4 @@ networks:
 
 volumes:
   oracle_dados_face_detection:
+  insightface_models:
