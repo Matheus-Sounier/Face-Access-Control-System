@@ -1,4 +1,4 @@
-from db.database import init_db, insert_person
+from db.database import init_db, insert_person, find_closest_match, log_access
 from recognition.embedding import extract_embedding
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
@@ -79,4 +79,43 @@ async def enroll_person(
         "employee_id": employee_id,
         "access_level": access_level,
         "status": "enrolled",
+    }
+
+@app.post("/recognize")
+async def recognize_person(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+
+    try:
+        embedding = extract_embedding(image)
+    except ValueError:
+        # no recognizable face in the submitted cutout
+        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False)
+        return {"match": False}
+
+    person = find_closest_match(embedding)
+
+    if person is None:
+        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False)
+        return {"match": False}
+
+    access_granted = person["access_level"] != "Visitor"
+
+    log_access(
+        person_id=person["id"],
+        employee_id=person["employee_id"],
+        recognized=True,
+        access_granted=access_granted,
+    )
+
+    return {
+        "match": True,
+        "name": person["name"],
+        "employee_id": person["employee_id"],
+        "access_level": person["access_level"],
+        "access_granted": access_granted,
     }
