@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from db.database import init_db
 from contextlib import asynccontextmanager
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
@@ -23,11 +24,9 @@ base_options = mp_python.BaseOptions(model_asset_path=os.getenv("MODEL_PATH"))
 detector_options = vision.FaceDetectorOptions(base_options=base_options)
 detector = vision.FaceDetector.create_from_options(detector_options)
 
-
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
-
 
 @app.post("/enroll")
 async def enroll_person(
