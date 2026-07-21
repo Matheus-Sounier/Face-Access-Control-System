@@ -22,12 +22,13 @@ def init_db():
     try:
         cursor.execute('''
             CREATE TABLE DETECTED_PEOPLE (
-                id            NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                name          VARCHAR2(255) NOT NULL,
-                employee_id   VARCHAR2(50) NOT NULL UNIQUE,
-                access_level  VARCHAR2(50) NOT NULL,
-                embedding     VECTOR(512, FLOAT32) NOT NULL,
-                enrolled_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id              NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                name            VARCHAR2(255) NOT NULL,
+                employee_id     VARCHAR2(50) NOT NULL UNIQUE,
+                access_level    VARCHAR2(50) NOT NULL,
+                embedding       VECTOR(512, FLOAT32) NOT NULL,
+                registered_face BLOB,
+                enrolled_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()
@@ -47,12 +48,13 @@ def init_db():
     try:
         cursor.execute('''
             CREATE TABLE ACCESS_LOGS (
-                id           NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                person_id    NUMBER REFERENCES DETECTED_PEOPLE(id),
-                employee_id  VARCHAR2(50),
-                recognized   NUMBER(1) NOT NULL,
+                id             NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                person_id      NUMBER REFERENCES DETECTED_PEOPLE(id),
+                employee_id    VARCHAR2(50),
+                recognized     NUMBER(1) NOT NULL,
                 access_granted NUMBER(1) NOT NULL,
-                attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                face_detected  BLOB,
+                attempted_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()
@@ -67,7 +69,7 @@ def init_db():
         cursor.close()
         conn.close()
         
-def insert_person(name: str, employee_id: str, access_level: str, embedding) -> int:
+def insert_person(name: str, employee_id: str, access_level: str, embedding, face_image_bytes: bytes) -> int:
     """
     Inserts a new person with their facial embedding.
     Returns the generated id. Raises oracledb.IntegrityError if employee_id already exists.
@@ -81,8 +83,8 @@ def insert_person(name: str, employee_id: str, access_level: str, embedding) -> 
         result_id = cursor.var(int)
         cursor.execute(
             '''
-            INSERT INTO DETECTED_PEOPLE (name, employee_id, access_level, embedding)
-            VALUES (:name, :employee_id, :access_level, :embedding)
+            INSERT INTO DETECTED_PEOPLE (name, employee_id, access_level, embedding, registered_face)
+            VALUES (:name, :employee_id, :access_level, :embedding, :registered_face)
             RETURNING id INTO :id
             ''',
             {
@@ -90,6 +92,7 @@ def insert_person(name: str, employee_id: str, access_level: str, embedding) -> 
                 "employee_id": employee_id,
                 "access_level": access_level,
                 "embedding": vector_value,
+                "registered_face": face_image_bytes,
                 "id": result_id,
             },
         )
@@ -142,7 +145,7 @@ def find_closest_match(embedding):
         cursor.close()
         conn.close()
 
-def log_access(person_id, employee_id, recognized: bool, access_granted: bool):
+def log_access(person_id, employee_id, recognized: bool, access_granted: bool, face_image_bytes: bytes = None):
     """no recognizable face in the submitted cutout"""
     conn = get_connection()
     cursor = conn.cursor()
@@ -150,14 +153,15 @@ def log_access(person_id, employee_id, recognized: bool, access_granted: bool):
     try:
         cursor.execute(
             '''
-            INSERT INTO ACCESS_LOGS (person_id, employee_id, recognized, access_granted)
-            VALUES (:person_id, :employee_id, :recognized, :access_granted)
+            INSERT INTO ACCESS_LOGS (person_id, employee_id, recognized, access_granted, face_detected)
+            VALUES (:person_id, :employee_id, :recognized, :access_granted, :face_detected)
             ''',
             {
                 "person_id": person_id,
                 "employee_id": employee_id,
                 "recognized": 1 if recognized else 0,
                 "access_granted": 1 if access_granted else 0,
+                "face_detected": face_image_bytes,
             },
         )
         conn.commit()
