@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_URL = os.getenv("API_URL")
+API_URL = os.getenv("API_URL_INTERNAL")
 
 st.set_page_config(
     page_title="Facial Access Control",

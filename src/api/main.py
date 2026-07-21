@@ -16,6 +16,22 @@ import os
 
 load_dotenv()
 
+def crop_with_margin(img, bbox, margin: float = 0.3):
+    img_h, img_w = img.shape[:2]
+    x, y, w, h = bbox.origin_x, bbox.origin_y, bbox.width, bbox.height
+
+    pad_w = int(w * margin)
+    pad_h = int(h * margin)
+
+    x1 = max(0, x - pad_w)
+    y1 = max(0, y - pad_h)
+    x2 = min(img_w, x + w + pad_w)
+    y2 = min(img_h, y + h + pad_h)
+
+    face_crop = img[y1:y2, x1:x2]
+    _, buffer = cv2.imencode(".jpg", face_crop)
+    return buffer.tobytes()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -65,8 +81,10 @@ async def enroll_person(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    registered_face_bytes = crop_with_margin(image, result.detections[0].bounding_box)
+
     try:
-        person_id = insert_person(name, employee_id, access_level, embedding)
+        person_id = insert_person(name, employee_id, access_level, embedding, registered_face_bytes)
     except oracledb.IntegrityError:
         raise HTTPException(
             status_code=409,
@@ -93,14 +111,13 @@ async def recognize_person(file: UploadFile = File(...)):
     try:
         embedding = extract_embedding(image)
     except ValueError:
-        # no recognizable face in the submitted cutout
-        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False)
+        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
         return {"match": False}
 
     person = find_closest_match(embedding)
 
     if person is None:
-        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False)
+        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
         return {"match": False}
 
     access_granted = person["access_level"] != "Visitor"
@@ -110,6 +127,7 @@ async def recognize_person(file: UploadFile = File(...)):
         employee_id=person["employee_id"],
         recognized=True,
         access_granted=access_granted,
+        face_image_bytes=image_bytes,
     )
 
     return {
