@@ -2,11 +2,13 @@ from db.database import init_db, insert_person, insert_face, find_closest_match,
 from recognition.embedding import extract_embedding
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
+from analytics.sql_agent import run_chat
 
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from typing import Optional
+from pydantic import BaseModel
 
 import numpy as np
 import mediapipe as mp
@@ -16,6 +18,14 @@ import cv2
 import os
 
 load_dotenv()
+
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatTurn] = []
 
 def crop_with_margin(img, bbox, margin: float = 0.3):
     img_h, img_w = img.shape[:2]
@@ -147,3 +157,9 @@ async def recognize_person(file: UploadFile = File(...)):
         "access_level": person["access_level"],
         "access_granted": access_granted,
     }
+
+@app.post("/analytics/chat")
+async def analytics_chat(payload: ChatRequest):
+    history = [turn.dict() for turn in payload.history]
+    reply, new_history = run_chat(payload.message, history)
+    return {"reply": reply, "history": new_history}
