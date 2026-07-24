@@ -108,3 +108,57 @@ def _serialize(value):
     if isinstance(value, oracledb.LOB):
         return f"<binary data, {value.size()} bytes>"
     return value
+
+
+def execute_sql(query: str) -> dict:
+    safe_query = validate_sql(query)
+
+    conn = get_readonly_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(safe_query)
+
+        columns = [col[0] for col in cursor.description]
+        rows = cursor.fetchmany(MAX_ROWS)
+
+        data = [
+            dict(zip(columns, (_serialize(v) for v in row)))
+            for row in rows
+        ]
+
+        return {
+            "columns": columns,
+            "rows": data,
+            "row_count": len(data),
+        }
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_sql",
+            "description": (
+                "Executes a read-only Oracle SELECT query against the "
+                "ACCESS_LOGS and DETECTED_PEOPLE tables and returns the result."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "A single Oracle SQL SELECT statement."
+                        ),
+                    }
+                },
+                "required": ["query"],
+            },
+        },
+    }
+]
