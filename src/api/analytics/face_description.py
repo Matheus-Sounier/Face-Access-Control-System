@@ -18,3 +18,41 @@ Do not guess age, gender, ethnicity, or race. Do not speculate about identity,
 intent, or emotional state. One concise sentence, factual and neutral tone.
 If the image is too unclear or too cropped to describe reliably, say so.
 """
+
+
+def describe_face(image_bytes: bytes) -> str:
+    b64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = httpx.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": VISION_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": DESCRIPTION_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": 2000,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    result = response.json()
+
+    if "error" in result:
+        raise RuntimeError(f"OpenRouter error: {result['error']}")
+    if "choices" not in result:
+        raise RuntimeError(f"Unexpected OpenRouter response: {result}")
+
+    return result["choices"][0]["message"]["content"].strip()
