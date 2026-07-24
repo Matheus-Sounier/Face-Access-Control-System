@@ -19,40 +19,51 @@ intent, or emotional state. One concise sentence, factual and neutral tone.
 If the image is too unclear or too cropped to describe reliably, say so.
 """
 
+import time
 
-def describe_face(image_bytes: bytes) -> str:
+def describe_face(image_bytes: bytes, max_retries: int = 2) -> str:
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-    response = httpx.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": VISION_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": DESCRIPTION_PROMPT},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
-                        },
-                    ],
-                }
-            ],
-            "max_tokens": 2000,
-        },
-        timeout=60,
-    )
-    response.raise_for_status()
-    result = response.json()
+    for attempt in range(max_retries + 1):
+        response = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": VISION_MODEL,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": DESCRIPTION_PROMPT},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
+                            },
+                        ],
+                    }
+                ],
+                "max_tokens": 1200,
+            },
+            timeout=60,
+        )
 
-    if "error" in result:
-        raise RuntimeError(f"OpenRouter error: {result['error']}")
-    if "choices" not in result:
-        raise RuntimeError(f"Unexpected OpenRouter response: {result}")
+        if response.status_code == 429 and attempt < max_retries:
+            wait_seconds = 5 * (attempt + 1)
+            print(f"[face_description] 429 received, waiting {wait_seconds}s...")
+            time.sleep(wait_seconds)
+            continue
 
-    return result["choices"][0]["message"]["content"].strip()
+        response.raise_for_status()
+        result = response.json()
+
+        if "error" in result:
+            raise RuntimeError(f"OpenRouter error: {result['error']}")
+        if "choices" not in result:
+            raise RuntimeError(f"Unexpected OpenRouter response: {result}")
+
+        return result["choices"][0]["message"]["content"].strip()
+
+    raise RuntimeError("Too many 429 responses from OpenRouter, giving up.")
