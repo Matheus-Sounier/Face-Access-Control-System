@@ -76,3 +76,35 @@ ACCESS_LOGS
 - "Business hours" means Monday to Friday, 08:00-18:00, unless the user specifies otherwise.
 - Only generate SELECT statements. Never generate INSERT, UPDATE, DELETE, or DDL statements.
 """
+
+FORBIDDEN_PATTERN = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|MERGE|CREATE|EXEC|CALL)\b",
+    re.IGNORECASE,
+)
+
+MAX_ROWS = 200
+
+def validate_sql(query: str) -> str:
+    """Raises ValueError if the query is not a single safe SELECT statement."""
+    stripped = query.strip().rstrip(";")
+
+    if not re.match(r"^\s*SELECT\b", stripped, re.IGNORECASE):
+        raise ValueError("Only SELECT queries are allowed.")
+
+    if FORBIDDEN_PATTERN.search(stripped):
+        raise ValueError("The query contains a forbidden SQL keyword.")
+
+    if ";" in stripped:
+        raise ValueError("Multiple SQL statements are not allowed.")
+
+    return stripped
+
+
+def _serialize(value):
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, oracledb.LOB):
+        return f"<binary data, {value.size()} bytes>"
+    return value
