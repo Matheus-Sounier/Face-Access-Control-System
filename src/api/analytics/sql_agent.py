@@ -162,3 +162,43 @@ TOOLS = [
         },
     }
 ]
+
+
+def _call_openrouter(messages: list, max_retries: int = 2) -> dict:
+    for attempt in range(max_retries + 1):
+        response = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": messages,
+                "tools": TOOLS,
+                "max_tokens": 2000,
+            },
+            timeout=30,
+        )
+
+        if response.status_code == 429:
+            print(f"[sql_agent] 429 body: {response.text}")
+            print(f"[sql_agent] 429 headers: {dict(response.headers)}")
+
+            if attempt < max_retries:
+                wait_seconds = 5 * (attempt + 1)
+                print(f"[sql_agent] Received 429, waiting {wait_seconds}s before retrying...")
+                time.sleep(wait_seconds)
+                continue
+
+        response.raise_for_status()
+        result = response.json()
+
+        if "error" in result:
+            raise RuntimeError(f"OpenRouter error: {result['error']}")
+        if "choices" not in result:
+            raise RuntimeError(f"Unexpected OpenRouter response: {result}")
+
+        return result
+
+    raise RuntimeError("Too many 429 responses from OpenRouter, giving up.")
