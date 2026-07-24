@@ -127,11 +127,12 @@ def log_access(person_id, employee_id, recognized: bool, access_granted: bool, f
     cursor = conn.cursor()
 
     try:
+        result_id = cursor.var(int)
         cursor.execute(
             '''
             INSERT INTO ACCESS_LOGS (person_id, employee_id, recognized, access_granted, face_detected)
             VALUES (:person_id, :employee_id, :recognized, :access_granted, :face_detected)
-            RETURNING id into :id
+            RETURNING id INTO :id
             ''',
             {
                 "person_id": person_id,
@@ -175,6 +176,19 @@ def insert_face(person_id: int, embedding, face_image_bytes: bytes) -> int:
         )
         conn.commit()
         return result_id.getvalue()[0]
+    finally:
+        cursor.close()
+        conn.close()
+
+def update_log_description(log_id: int, description: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE ACCESS_LOGS SET face_description = :description WHERE id = :log_id",
+            {"description": description, "log_id": log_id},
+        )
+        conn.commit()
     finally:
         cursor.close()
         conn.close()
