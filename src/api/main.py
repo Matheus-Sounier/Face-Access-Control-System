@@ -1,10 +1,14 @@
-from db.database import init_db, insert_person, insert_face, find_closest_match, log_access
+from db.database import (
+    init_db, insert_person, insert_face, find_closest_match, log_access,
+    has_recent_unknown_log, update_log_description, get_unknown_faces,
+)
 from recognition.embedding import extract_embedding
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 from analytics.sql_agent import run_chat
+from analytics.face_description import describe_face
 
-from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException, BackgroundTasks
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from typing import Optional
@@ -16,6 +20,7 @@ import mediapipe as mp
 import oracledb
 import cv2
 import os
+import base64
 
 load_dotenv()
 
@@ -43,6 +48,13 @@ def crop_with_margin(img, bbox, margin: float = 0.3):
     _, buffer = cv2.imencode(".jpg", face_crop)
     return buffer.tobytes()
 
+def generate_and_save_description(log_id: int, image_bytes: bytes):
+    try:
+        description = describe_face(image_bytes)
+        update_log_description(log_id, description)
+    except Exception as exc:
+        print(f"[face_description] failed for log {log_id}: {exc}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -57,6 +69,24 @@ detector = vision.FaceDetector.create_from_options(detector_options)
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/analytics/unknown-faces")
+def list_unknown_faces(limit: int = 40):
+    faces = get_unknown_faces(limit=limit)
+    return {
+        "faces": [
+            {
+                "id": f["id"],
+                "description": f["description"],
+                "attempted_at": f["attempted_at"],
+                "image_base64": (
+                    base64.b64encode(f["image_bytes"]).decode("utf-8")
+                    if f["image_bytes"] else None
+                ),
+            }
+            for f in faces
+        ]
+    }
 
 @app.post("/enroll")
 async def enroll_person(
@@ -120,7 +150,7 @@ async def enroll_person(
     }
 
 @app.post("/recognize")
-async def recognize_person(file: UploadFile = File(...)):
+async def recognize_person(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     image_bytes = await file.read()
     image_array = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
@@ -131,13 +161,17 @@ async def recognize_person(file: UploadFile = File(...)):
     try:
         embedding = extract_embedding(image)
     except ValueError:
-        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
+        log_id = log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
+        if not has_recent_unknown_log():
+            background_tasks.add_task(generate_and_save_description, log_id, image_bytes)
         return {"match": False}
 
     person = find_closest_match(embedding)
 
     if person is None:
-        log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
+        log_id = log_access(person_id=None, employee_id=None, recognized=False, access_granted=False, face_image_bytes=image_bytes)
+        if not has_recent_unknown_log():
+            background_tasks.add_task(generate_and_save_description, log_id, image_bytes)
         return {"match": False}
 
     access_granted = person["access_level"] != "Visitor"
