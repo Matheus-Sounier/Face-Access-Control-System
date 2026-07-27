@@ -194,3 +194,62 @@ def _call_openrouter(messages: list, max_retries: int = 2) -> dict:
         return result
 
     raise RuntimeError("Too many 429 responses from OpenRouter, giving up.")
+
+def run_chat(user_message: str, history: list[dict]) -> tuple[str, list[dict]]:
+    messages = [{"role": "system", "content": SCHEMA_DESCRIPTION}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+
+    # print(f"[sql_agent] Sending {len(messages)} messages: {json.dumps(messages, ensure_ascii=False)[:2000]}")
+
+    for _ in range(5):
+        try:
+            result = _call_openrouter(messages)
+        except Exception as exc:
+            print(f"[sql_agent] OpenRouter call failed: {exc}")
+            return (
+                "I couldn't communicate with the analysis model at the moment. "
+                "Please check the API logs for more details.",
+                history,
+            )
+
+        message = result["choices"][0]["message"]
+        messages.append(message)
+
+        tool_calls = message.get("tool_calls")
+
+        if not tool_calls:
+            final_text = message.get("content", "")
+
+            new_history = history + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": final_text},
+            ]
+
+            return final_text, new_history
+
+        for tool_call in tool_calls:
+            args = json.loads(tool_call["function"]["arguments"])
+            query = args.get("query", "")
+
+            try:
+                tool_result = execute_sql(query)
+            except Exception as exc:
+                tool_result = {"error": str(exc)}
+
+            # print(f"[sql_agent] query: {query!r} -> {tool_result}")
+
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(tool_result, ensure_ascii=False),
+                }
+            )
+
+    fallback = (
+        "I couldn't complete the analysis within the maximum number of steps. "
+        "Please try rephrasing your question."
+    )
+
+    return fallback, history
