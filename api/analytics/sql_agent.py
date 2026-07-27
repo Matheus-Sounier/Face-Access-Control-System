@@ -79,3 +79,54 @@ FORBIDDEN_PATTERN = re.compile(
 )
 
 MAX_ROWS = 200
+
+def validate_sql(query: str) -> str:
+    """Raises ValueError if the query is not a single safe SELECT statement."""
+    stripped = query.strip().rstrip(";")
+
+    if not re.match(r"^\s*SELECT\b", stripped, re.IGNORECASE):
+        raise ValueError("Only SELECT queries are allowed.")
+
+    if FORBIDDEN_PATTERN.search(stripped):
+        raise ValueError("The query contains a forbidden SQL keyword.")
+
+    if ";" in stripped:
+        raise ValueError("Multiple SQL statements are not allowed.")
+
+    return stripped
+
+def _serialize(value):
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, oracledb.LOB):
+        return f"<binary data, {value.size()} bytes>"
+    return value
+
+def execute_sql(query: str) -> dict:
+    safe_query = validate_sql(query)
+
+    conn = get_readonly_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(safe_query)
+
+        columns = [col[0] for col in cursor.description]
+        rows = cursor.fetchmany(MAX_ROWS)
+
+        data = [
+            dict(zip(columns, (_serialize(v) for v in row)))
+            for row in rows
+        ]
+
+        return {
+            "columns": columns,
+            "rows": data,
+            "row_count": len(data),
+        }
+
+    finally:
+        cursor.close()
+        conn.close()
