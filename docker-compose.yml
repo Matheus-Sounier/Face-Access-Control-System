@@ -25,13 +25,13 @@ services:
           sqlplus -s sys/${ORACLE_PWD}@//localhost:1521/${SERVICE_NAME} as sysdba |
           grep -qE '^[[:space:]]*1[[:space:]]*$'
       timeout: 10s
-      interval: 30s
+      interval: 15s
       retries: 5
       start_period: 5m0s
 
   fastapi_app:
     build: 
-      context: ./src/api
+      context: ./api
       dockerfile: Dockerfile
     container_name: ${CONTAINER_API}
     restart: unless-stopped
@@ -40,13 +40,13 @@ services:
     ports:
       - "${PORT_API}:8000"
     volumes:
-      - ./src/api:/app
+      - ./api:/app
       - insightface_models:/root/.insightface
     
     healthcheck:
       test: ["CMD", "curl", "-f", "${API_URL}/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 5
       start_period: 100s
 
@@ -59,7 +59,7 @@ services:
 
   streamlit:
     build:
-      context: ./src/dashboard
+      context: ./gui
       dockerfile: Dockerfile
     container_name: ${CONTAINER_STREAMLIT}
     restart: unless-stopped
@@ -68,7 +68,7 @@ services:
     ports: 
       - "${PORT_STREAMLIT}:8501"
     volumes: 
-      - ./src/dashboard:/app
+      - ./gui:/app
     depends_on:
       fastapi_app:
         condition: service_healthy
