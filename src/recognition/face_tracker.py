@@ -42,3 +42,22 @@ class FaceTracker:
             return True
 
         return False
+
+    def get_color(self):
+        with self._color_lock:
+            return self.box_color
+
+    def start_recognition(self, image_bytes, match_color, no_match_color):
+        threading.Thread(
+            target=self._run_recognition,
+            args=(image_bytes, match_color, no_match_color),
+            daemon=True,
+        ).start()
+
+    def _run_recognition(self, image_bytes, match_color, no_match_color):
+        data = recognize_face(image_bytes)
+        new_color = match_color if (data and data.get("match")) else no_match_color
+
+        with self._color_lock:
+            self.box_color = new_color
+            self.recognition_in_progress = False
