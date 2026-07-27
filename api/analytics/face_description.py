@@ -47,3 +47,27 @@ def describe_face(image_bytes: bytes, max_retries: int = 2) -> str:
             },
             timeout=60,
         )
+
+        if response.status_code == 429 and attempt < max_retries:
+            wait_seconds = 5 * (attempt + 1)
+            print(f"[face_description] 429 received, waiting {wait_seconds}s...")
+            time.sleep(wait_seconds)
+            continue
+        
+        if response.status_code == 400:
+            print(f"[face_description] 400 body: {response.text}")
+
+        if response.status_code == 404:
+            print(f"[face_description] 404 body: {response.text}")
+
+        response.raise_for_status()
+        result = response.json()
+
+        if "error" in result:
+            raise RuntimeError(f"OpenRouter error: {result['error']}")
+        if "choices" not in result:
+            raise RuntimeError(f"Unexpected OpenRouter response: {result}")
+
+        return result["choices"][0]["message"]["content"].strip()
+
+    raise RuntimeError("Too many 429 responses from OpenRouter, giving up.")
