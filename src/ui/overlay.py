@@ -1,7 +1,7 @@
 import cvzone
 
-def draw_face_box(img, x, y, w, h):
-    return cvzone.cornerRect(img, (x, y, w, h), rt=0)
+def draw_face_box(img, x, y, w, h, color=(255, 255, 255)):
+    return cvzone.cornerRect(img, (x, y, w, h), rt=0, colorC=color)
 
 def draw_result(img, x, y, data):
     if data and data.get("match"):
