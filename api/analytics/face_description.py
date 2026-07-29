@@ -3,7 +3,12 @@ import base64
 import httpx
 import time
 
-from config import OPENROUTER_API_KEY, VISION_MODEL, OPENROUTER_MODEL
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+VISION_MODEL = os.getenv("OPENROUTER_VISION_MODEL")
 
 DESCRIPTION_PROMPT = """
 Describe this person's physical appearance for a security log, focused only on

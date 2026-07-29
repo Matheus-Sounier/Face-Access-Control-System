@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from decimal import Decimal
+from dotenv import load_dotenv
 
 import os
 import time
@@ -7,6 +8,11 @@ import re
 import json
 import httpx
 import oracledb
+
+load_dotenv()
+
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 def get_readonly_connection():
     return oracledb.connect(
