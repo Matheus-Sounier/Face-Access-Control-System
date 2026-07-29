@@ -1,7 +1,7 @@
 import array
 from db.connection import get_connection
 
-MATCH_THRESHOLD = 0.6J
+MATCH_THRESHOLD = 0.9
 
 def insert_face(person_id: int, embedding, face_image_bytes: bytes) -> int:
     """
