@@ -12,9 +12,11 @@ The project includes two AI-powered analytics features:
 
 ## Demonstration
 
-https://github.com/user-attachments/assets/0e1a2068-f921-43a8-826a-254eb32a3944
+### Gif of a registered and not registered face
+<img width="950" height="600" alt="Image" src="https://github.com/user-attachments/assets/266c2155-d315-4af3-bc37-e5b3476f8204" />
 
-https://github.com/user-attachments/assets/79f4f735-4178-42d3-b0e6-c23cb5a04508
+### Work-flow
+<img width="950" height="600" alt="Image" src="https://github.com/user-attachments/assets/4a2cefc6-9521-4ceb-915f-721aa6b635cc" />
 
 # Registered Face being detected
 <img width="453" height="392" alt="Image" src="https://github.com/user-attachments/assets/408678fe-7983-4dbb-bb78-aa1a1dfc44dd" />
