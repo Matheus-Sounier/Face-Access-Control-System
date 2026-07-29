@@ -16,6 +16,12 @@ https://github.com/user-attachments/assets/0e1a2068-f921-43a8-826a-254eb32a3944
 
 https://github.com/user-attachments/assets/79f4f735-4178-42d3-b0e6-c23cb5a04508
 
+# Registered Face being detected
+<img width="453" height="392" alt="Image" src="https://github.com/user-attachments/assets/408678fe-7983-4dbb-bb78-aa1a1dfc44dd" />
+
+# Not registered Face being detected
+<img width="385" height="368" alt="Image" src="https://github.com/user-attachments/assets/1ef84bc9-351b-4ac2-bca8-04954fead0c9" />
+
 ## Technologies
 
 - Python
